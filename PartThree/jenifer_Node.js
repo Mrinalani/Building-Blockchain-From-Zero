@@ -40,17 +40,22 @@ console.log("jenifer listing on port: ", PORT)
       if (!connected.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
         const socket = new WS(address);
 
-        socket.on("open", () => { socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected]))); // Sends your own address + known peers to the new peer you just connected to.
+       socket.on("open", () => {
+        
+  // If you're node A and you're already connected to nodes B and C, then this line sends …to the newly connected peer D, so it can also connect to A, B, and C
+  socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected])));
 
-          opened.forEach((node) => { node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address]))); // Tells all existing peers about the new peer you just connected to.
+  // If node A connects to node D, it now tells B and C
+  opened.forEach((node) => {
+    node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address])));
+  });
 
-          if (!opened.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
-            opened.push({ socket, address });
-            connected.push(address);
-          }
+  if (!opened.find((node) => node.address == address) && address !== MY_ADDRESS) {
+    opened.push({ socket, address });
+    connected.push(address);
+  }
+});
 
-          });
-        });
 
         socket.on("close", () => {
             opened.splice(connected.indexOf(address), 1)
@@ -72,4 +77,6 @@ function sendMessage(message) {
 
 setTimeout(() => {
     sendMessage(ProduceMessage("Message", "Hello from the jenifer"));
-},10000);
+},15000);
+
+process.on("uncaughtException", err => console.log(err));

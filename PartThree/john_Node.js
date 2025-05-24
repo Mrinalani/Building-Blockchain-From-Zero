@@ -40,17 +40,19 @@ console.log("john listing on port: ", PORT)
       if (!connected.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
         const socket = new WS(address);
 
-        socket.on("open", () => { socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected]))); // Sends your own address + known peers to the new peer you just connected to.
+        socket.on("open", () => {
+  socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected])));
 
-          opened.forEach((node) => { node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address]))); // Tells all existing peers about the new peer you just connected to.
+  opened.forEach((node) => {
+    node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address])));
+  });
 
-          if (!opened.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
-            opened.push({ socket, address });
-            connected.push(address);
-          }
+  if (!opened.find((node) => node.address == address) && address !== MY_ADDRESS) {
+    opened.push({ socket, address });
+    connected.push(address);
+  }
+});
 
-          });
-        });
 
         socket.on("close", () => {
             opened.splice(connected.indexOf(address), 1)
@@ -72,4 +74,6 @@ function sendMessage(message) {
 
 setTimeout(() => {
     sendMessage(ProduceMessage("Message", "Hello from the john"));
-},3000);
+},10000);
+
+process.on("uncaughtException", err => console.log(err));

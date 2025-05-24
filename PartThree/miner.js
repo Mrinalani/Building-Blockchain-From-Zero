@@ -6,6 +6,8 @@ const WS = require('ws');
 const PORT = 3000;
 const MY_ADDRESS = "ws://localhost:3000";
 
+const PEER = ["ws://localhost:3001", "ws://localhost:3002"]
+
 const server = new WS.Server({port:PORT});
 
 let opened = [] // store socket and addresses
@@ -40,17 +42,19 @@ console.log("Miner listing on port: ", PORT)
       if (!connected.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
         const socket = new WS(address);
 
-        socket.on("open", () => { socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected]))); // Sends your own address + known peers to the new peer you just connected to.
+       socket.on("open", () => {
+  socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected])));
 
-          opened.forEach((node) => { node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address]))); // Tells all existing peers about the new peer you just connected to.
+  opened.forEach((node) => {
+    node.socket.send(JSON.stringify(ProduceMessage("TYPE_HANDSHAKE", [address])));
+  });
 
-          if (!opened.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
-            opened.push({ socket, address });
-            connected.push(address);
-          }
+  if (!opened.find((node) => node.address == address) && address !== MY_ADDRESS) {
+    opened.push({ socket, address });
+    connected.push(address);
+  }
+});
 
-          });
-        });
 
         socket.on("close", () => {
             opened.splice(connected.indexOf(address), 1)
@@ -70,6 +74,10 @@ function sendMessage(message) {
 
 }
 
+PEER.forEach((peer) => connect(peer))
+
 setTimeout(() => {
     sendMessage(ProduceMessage("Message", "Hello from the miner"));
-},6000);
+},5000);
+
+process.on("uncaughtException", err => console.log(err));
