@@ -6,11 +6,10 @@ server.on("connection", (ws) => {
 console.log("Client is connected");
 
 setInterval(()=>{
-    ws.send("Hellow World")
+    ws.send("Hello World")
 }, 1000)
 
 ws.on("close", () => {
     console.log("Client disconnected");
 })
-
 })
