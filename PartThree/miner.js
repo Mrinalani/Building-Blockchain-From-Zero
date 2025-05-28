@@ -2,6 +2,10 @@
 // each node has a ip address and a port to which other node is connected
 
 const WS = require('ws');
+const readLine = require('readline');
+
+import {Block, satoshiCoin, Transaction} from "../PartOne/blockchain.js";
+import key from "../PartOne/keys.js"
 
 const PORT = 3000;
 const MY_ADDRESS = "ws://localhost:3000";
@@ -25,6 +29,22 @@ console.log("Miner listing on port: ", PORT)
             // _message(type..., data...)
 
             switch (_message.type) {
+              case "TYPE_REPLACE_CHAIN":
+                const [ newBlock, newDiff ]  = _message.data;
+
+                if(newBlock.prevHash !== satoshiCoin.getLastBlock().prevHash &&
+                   satoshiCoin.getLastBlock().hash === newBlock.prevHash() && 
+                   Block.hasValidTransactions(newBlock, satoshiCoin))
+                   {
+                    satoshiCoin.chain.push(newBlock);
+                    satoshiCoin.difficulty = newDiff;
+                   }
+              break;
+
+              case "TYPE_CREATE_TRANSACTION":
+                const transaction = _message.data;
+                satoshiCoin.addTransactions(transaction);
+
                 case "TYPE_HANDSHAKE":  // If a node sends a "TYPE_HANDSHAKE" message, we expect it to contain a list of peers it's connected to. // node is sendeing the addresses of the node it is alredy connected with
                     const nodes = _message.data;
                     nodes.forEach((node) => connect(node)) // miner node has to connect with each node
@@ -76,8 +96,12 @@ function sendMessage(message) {
 
 PEER.forEach((peer) => connect(peer))
 
-setTimeout(() => {
-    sendMessage(ProduceMessage("Message", "Hello from the miner"));
-},5000);
+const rl = readLine.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  prompt: "Enter a command:/n"
+})
+
+
 
 process.on("uncaughtException", err => console.log(err));
