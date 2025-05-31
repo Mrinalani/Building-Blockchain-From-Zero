@@ -102,6 +102,38 @@ const rl = readLine.createInterface({
   prompt: "Enter a command:/n"
 })
 
+rl.on("line", (command) => {
+  switch (command.toLowerCase()) {
+    case "mine":
+      if(satoshiCoin.transactions.length() !== 0){
+        satoshiCoin.mineTransactions(key.MINER_KEY.getPublic('hex'));
+
+        sendMessage(ProduceMessage['TYPE_REPLACE_CHAIN',
+          [satoshiCoin.getLastBlock(),
+            satoshiCoin.difficulty
+          ]
+        ])
+      }
+      break;
+
+    case "balance":
+      console.log("Miner Balance", satoshiCoin.getBalance(key.MINER_KEY.getPublic('hex')))
+      break;
+
+    case "blockchain":
+      console.log(satoshiCoin)
+      break; 
+      
+    case "clear":
+      console.clear()
+      break; 
+  }
+  rl.prompt();
+}).on('close', () => {
+  console.log("existing!")
+  process.exit(0)
+})
+
 
 
 process.on("uncaughtException", err => console.log(err));
