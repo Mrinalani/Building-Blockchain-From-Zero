@@ -43,7 +43,9 @@ console.log("Miner listing on port: ", PORT)
 
               case "TYPE_CREATE_TRANSACTION":
                 const transaction = _message.data;
-                satoshiCoin.addTransactions(transaction);
+                 if(!isTransactionDuplicate(transaction)){
+                    satoshiCoin.addTransactions(transaction);
+                  }
 
                 case "TYPE_HANDSHAKE":  // If a node sends a "TYPE_HANDSHAKE" message, we expect it to contain a list of peers it's connected to. // node is sendeing the addresses of the node it is alredy connected with
                     const nodes = _message.data;
@@ -57,6 +59,9 @@ console.log("Miner listing on port: ", PORT)
         })
     })
 
+     function isTransactionDuplicate(transaction) {
+      return satoshiCoin.transactions.some(tx => JSON.stringify(tx) == JSON.stringify(transaction));
+    }
 
     function connect(address) {
       if (!connected.find((peerAddress) => peerAddress == address) && address !== MY_ADDRESS) {
