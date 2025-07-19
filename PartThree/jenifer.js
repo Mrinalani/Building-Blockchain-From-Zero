@@ -2,74 +2,90 @@ const WS = require("ws"); // Import web socket
 
 const readline = require('readline')
 
-const { satoshiCoin, Block } = require("../PartOne/blockchain");
+const { satoshiCoin, Block, Transaction } = require("../PartOne/blockchain");
 const keys = require("../PartOne/keys");
 
-const PORT = 3000; // port
-const MY_ADDRESS = "ws://localhost:3000"; // server address
+
+const PORT = 3002; // port
+const MY_ADDRESS = "ws://localhost:3002"; // server address
 
 const server = new WS.Server({ port: PORT }); // Create web socket server
 
-const peers = ["ws://localhost:3001", "ws://localhost:3002"]; // list of peers
 const opened = []; // store socket and address
 const connected = []; // store address
 
 
-console.log("Miner is listening on port", PORT); // log
+console.log("Jenifer is listening on port", PORT); // log
 
 
-server.on("connection", (socket) => { // socket object is the socket of node which wishes to connect miner node
-   console.log("[MINER] New connection established"); // log
+server.on("connection", (socket) => { // socket object is the socket of node which wishes to connect jenifer node
+   console.log("[JENIFER] New connection established"); // log
 
 
    socket.on("message", (message) => { // event which handle incoming messages from node
        const _message = JSON.parse(message); // convert string messae into object
-       console.log("[MINER] Received:", _message); // log
+       console.log("[JENIFER] Received:", _message); // log
 
 
        switch (_message.type) { // message structure => {type:..., data:...}
            case "TYPE_HANDSHAKE": // means node sending addresses it is already connected to
                const nodes = _message.data; // extract all nodes from message.data
-               console.log("[MINER] Received handshake with nodes:", nodes); // log
+               console.log("[JENIFER] Received handshake with nodes:", nodes); // log
 
 
                nodes.forEach(node => connect(node)); // connect to all nodes
                break;
 
-            case "REPLACE_CHAIN": // Replace old chain with updated new chain after miner mines new block
+            case "REPLACE_CHAIN": // Replace old chain with updated new chain after jenifer mines new block
                 const[ newBlock, newDiff ] = _message.data;
                 console.log("replace chain", newBlock, newDiff)
-                if(
-                    // newBlock.prevhash != satoshiCoin.getLastBlock().prevhash &&
+
+                if(newBlock.prevhash != satoshiCoin.getLastBlock().prevhash &&
                    satoshiCoin.getLastBlock().hash == newBlock.prevhash &&
                    Block.hasValidTransaction(newBlock, satoshiCoin)
                  ) {
                     console.log("abc")
                     satoshiCoin.chain.push(newBlock);
                     satoshiCoin.difficulty = newDiff;
-                    console.log(satoshiCoin.chain);
                  } 
                  break;
 
                 case "CREATE_TRANSACTION":
                     const transaction = _message.data;
-                    console.log("****************", transaction)
                     if(!isTransactionDuplicate(transaction)){
-                        console.log("transaction is added to pool")
-                        satoshiCoin.addTransaction(transaction); 
-                    }else {
-                        console.log("[MINER] Duplicate transaction ignored");
+                      satoshiCoin.addTransaction(transaction); 
                     }
                     break;
 
+                case "TYPE_BALANCE":
+                    const [address, publicKey] = _message.data;
+                    
+                    opened.forEach((node) => {
+                        if(node.address == address){
+                           const balance = satoshiCoin.getBalance(publicKey);
+                           console.log("@@@@@@@@@@@", balance)
+                           console.log("****$$$$$$$$$",sendMessage(produceMessage("TYPE_BALANCE", balance)))
+                           node.socket.send(sendMessage({type: "TYPE_BALANCE", data: balance}))
+                        }        
+                    });
+
+                case "TYPE_VERIFY":
+                    const peerAddress = _message.data;
+                    
+                    opened.forEach((node) => {
+                         if(node.address == peerAddress){
+                            const isValid = satoshiCoin.isValid()
+                           node.socket.send(sendMessage(produceMessage("TYPE_VERIFY", isValid)))
+                        }    
+                    })
 
            case "MESSAGE": // means node sending addresses it is already connected to
-               console.log("[MINER] Message:", _message.data); // log
+               console.log("[JENIFER] Message:", _message.data); // log
                break;
        }
 
 
-       console.log("[MINER] Connected:", connected); // log
+       console.log("[JENIFER] Connected:", connected); // log
    });
 });
 
@@ -80,14 +96,14 @@ const connect = (address) => {
 
 
        socket.on("open", () => { // fired when connection with node is established
-           console.log(`[MINER] Connected to ${address}`); // log
+           console.log(`[JENIFER] Connected to ${address}`); // log
 
 
            // send known connections
            socket.send(JSON.stringify(produceMessage("TYPE_HANDSHAKE", [MY_ADDRESS, ...connected]))); // produceMessage is utility function
 
 
-           opened.forEach(peer => { // send the nodes miner is already connected to other node
+           opened.forEach(peer => { // send the nodes JENIFER is already connected to other node
                peer.socket.send(JSON.stringify(produceMessage("TYPE_HANDSHAKE", [address]))); // produceMessage is utility function
            });
 
@@ -101,7 +117,7 @@ const connect = (address) => {
 
 
        socket.on("close", () => { // Fired when connection with node is closed
-           console.log(`[MINER] Connection closed with ${address}`); // log
+           console.log(`[JENIFER] Connection closed with ${address}`); // log
            opened.splice(opened.findIndex(p => p.address === address), 1); // remove node from opened
            connected.splice(connected.findIndex(p => p === address), 1); // remove node from connected
        });
@@ -110,7 +126,7 @@ const connect = (address) => {
 
  function isTransactionDuplicate(transaction) {
     // return satoshiCoin.transaction.some((tx) => JSON.stringify(tx) == JSON.stringify(transaction));
-     return satoshiCoin.transaction.some(tx =>
+     return satoshiCoin.transaction.some((tx) =>
     tx.from === transaction.from &&
     tx.to === transaction.to &&
     tx.amount === transaction.amount &&
@@ -118,17 +134,45 @@ const connect = (address) => {
   );
 }
 
+function broadCastTransaction() {
+   satoshiCoin.transaction.forEach((transaction, index) => {
+    if(transactionIncluded(transaction)){
+     satoshiCoin.transaction.splice(index, 1)
+    }else{
+        sendMessage(produceMessage("CREATE_TRANSACTION", transaction))
+    }
+   })
+
+   setTimeout(()=> {
+    broadCastTransaction()
+}, 10000)
+}
+
+broadCastTransaction();
+
+function transactionIncluded(transaction) {
+//   return satoshiCoin.chain.some((block) => {
+//     return block.data.some((tx) => {
+//       return JSON.stringify(tx) === JSON.stringify(transaction);
+//     });
+//   });
+ return satoshiCoin.chain.some((block) =>
+    block.data.some((tx) =>
+      tx.from === transaction.from &&
+      tx.to === transaction.to &&
+      tx.amount === transaction.amount &&
+      tx.gas === transaction.gas
+    )
+  );
+}
+
 
 const produceMessage = (type, data) => ({ type, data }); // produceMessage is utility function
-
 
 const sendMessage = (data) => { // sendMessage is utility function
    const message = JSON.stringify(produceMessage(data.type, data.data)); // produceMessage is utility function
    opened.forEach(peer => peer.socket.send(message)); // send message to all connected nodes
 };
-
-
-peers.forEach(connect); // connect to all peers
 
 
 let rl = readline.createInterface({
@@ -139,18 +183,10 @@ let rl = readline.createInterface({
 
 rl.on("line", (command) => {
     switch (command.toLowerCase()) {
-        case 'mine':
-            console.log("mining1")
-            console.log(satoshiCoin.transaction)
-            if(satoshiCoin.transaction.length !== 0){
-                console.log("mining2")
-                satoshiCoin.mineTransaction(keys.MINER_KEY.getPublic('hex'));
-            }
-            
-            sendMessage(produceMessage("REPLACE_CHAIN", 
-             [satoshiCoin.getLastBlock(),
-              satoshiCoin.difficulty
-             ]))
+        case 'send':
+            const transaction = new Transaction(keys.JENIFER_KEY.getPublic('hex'), keys.BOB_KEY.getPublic('hex'), 70, 10);
+            transaction.sign(keys.JENIFER_KEY);
+            sendMessage(produceMessage("CREATE_TRANSACTION", transaction));
             break;
 
             case 'blockchain':
@@ -158,7 +194,7 @@ rl.on("line", (command) => {
             break;
 
             case 'balance':
-            console.log("Miner's Balance", satoshiCoin.getBalance(keys.MINER_KEY.getPublic("hex")))
+            console.log("Jenifer's Balance", satoshiCoin.getBalance(keys.JENIFER_KEY.getPublic("hex")))
             break;
 
             case 'clear':
@@ -169,13 +205,12 @@ rl.on("line", (command) => {
             break;
     }
     rl.prompt()
-
 }).on("close", ()=>{
     console.log("existing");
     process.exit(0);
 })
 
-process.on("uncaughtException", err => console.log("[MINER ERROR]", err)); // log error if anything goes wrong
+process.on("uncaughtException", err => console.log("[JENIFER ERROR]", err)); // log error if anything goes wrong
 
 
 

@@ -9,3 +9,7 @@ ws.on("open", () => {
 ws.on("message", (data) => {  // handles the messages received from the server
     console.log(`${data}`);
 })
+
+
+
+
